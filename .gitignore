@@ -1,0 +1,56 @@
+# Osusu repository-wide ignores. backend/.gitignore and frontend/.gitignore
+# add app-specific rules.
+
+# --- Secrets and environment files (templates are kept) ---------------------
+.env
+.env.*
+!.env.example
+!*.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets/
+
+# --- Python ------------------------------------------------------------------
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Databases, dumps and private data ---------------------------------------
+*.sqlite3
+*.sqlite3-journal
+*.db
+*.dump
+*.sql
+*.sql.gz
+*.backup
+
+# --- Generated artefacts -----------------------------------------------------
+# Trained ML models (backend/ml_models or ML_MODEL_DIR) and collected static.
+ml_models/
+*.joblib
+*.pkl
+staticfiles/
+*.log
+
+# --- Node / Next.js ----------------------------------------------------------
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# --- Editors and OS ----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store

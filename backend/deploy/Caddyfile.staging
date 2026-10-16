@@ -1,0 +1,31 @@
+# Osusu STAGING reverse proxy (Caddy 2). Template: replace the host names
+# and set STAGING_ALLOWED_IPS (space-separated CIDRs) in Caddy's environment.
+# Not validated here (Caddy is not installed on the development machine):
+# run `caddy validate --config Caddyfile.staging` before first use.
+#
+# Caddy terminates TLS (automatic certificates), redirects HTTP to HTTPS,
+# passes Host through, SETS X-Forwarded-Proto and X-Forwarded-Host, and
+# ignores client-sent X-Forwarded-* values by default (no trusted_proxies
+# configured), so DJANGO_TRUST_X_FORWARDED_PROTO=true and
+# DJANGO_NUM_PROXIES=1 are justified for this single proxy.
+#
+# PRIVATE BY DEFAULT: requests from outside STAGING_ALLOWED_IPS get 404.
+# HTTP basic auth is NOT used: the browser sends `Authorization: Bearer`
+# to the API, which basic auth would clash with.
+
+(private) {
+	@outside not remote_ip {$STAGING_ALLOWED_IPS}
+	respond @outside "Not found" 404
+}
+
+staging.example.org {
+	import private
+	# Next.js (`next start -H 127.0.0.1 -p 3000`).
+	reverse_proxy 127.0.0.1:3000
+}
+
+api.staging.example.org {
+	import private
+	# Gunicorn (gunicorn.conf.py, bound to 127.0.0.1:8000).
+	reverse_proxy 127.0.0.1:8000
+}

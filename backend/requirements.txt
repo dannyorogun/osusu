@@ -1,0 +1,34 @@
+# Web / API
+Django>=5.2,<7
+djangorestframework>=3.16
+djangorestframework-simplejwt>=5.5
+django-cors-headers>=4.9
+
+# Production serving: WSGI server and Django admin static files
+# (OPERATIONS.md, "Production deployment").
+gunicorn>=23,<26
+whitenoise>=6.9,<7
+
+# Database / configuration
+psycopg2-binary>=2.9
+python-dotenv>=1.2
+
+# Machine learning (risk signals only — never financial decisions)
+scikit-learn>=1.5
+numpy>=1.26
+joblib>=1.4
+
+# Explanation assistant providers (imported ONLY by their adapters:
+# services/llm/anthropic_provider.py, services/knowledge/openai_embedding_provider.py)
+anthropic>=1.9,<2
+openai>=2.20,<4
+
+# Assistant rate limiting shared across instances (Django RedisCache,
+# OSUSU_RATE_LIMIT_REDIS_URL). Required before the paid assistant can
+# pass the readiness gate.
+redis>=5,<9
+
+# Testing: lets Django's parallel runner (`manage.py test --parallel`)
+# report a failing test's traceback instead of crashing the whole run
+# ("cannot pickle 'traceback' object").
+tblib>=3,<4
