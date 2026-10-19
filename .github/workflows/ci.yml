@@ -1,0 +1,135 @@
+# Osusu continuous integration.
+#
+# Backend: Django checks, migration drift and the full test suite against
+# a throwaway PostgreSQL service. Frontend: Vitest, TypeScript, ESLint and
+# the production build.
+#
+# CI never talks to production, payment/payout providers or paid AI APIs:
+# every value below is a CI-only placeholder and no repository secrets are
+# used. The opt-in live tests (OSUSU_RUN_EXTERNAL_AI_TESTS,
+# OSUSU_RUN_REDIS_TESTS) stay skipped.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both versions are supported (OPERATIONS.md). The full suite runs on
+        # 3.14 for every change; 3.12 installs, checks and verifies
+        # migrations on every change and runs the full suite on main only.
+        python-version: ["3.14", "3.12"]
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: osusu_ci
+          POSTGRES_PASSWORD: osusu_ci_only_password
+          POSTGRES_DB: osusu_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U osusu_ci -d osusu_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_NAME: osusu_ci
+      DB_USER: osusu_ci
+      DB_PASSWORD: osusu_ci_only_password
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      # Same as local development: the suite expects a DEBUG process, which
+      # also makes the payout provider default to the in-process mock (moves
+      # no money). Production settings are covered by
+      # config/test_production_settings.py in subprocesses.
+      DJANGO_DEBUG: "true"
+      OSUSU_MOCK_PAYMENTS_ENABLED: "false"
+      OSUSU_LLM_PROVIDER: disabled
+      OSUSU_EMBEDDING_PROVIDER: hashing
+      OSUSU_RUN_EXTERNAL_AI_TESTS: "false"
+      OSUSU_RUN_REDIS_TESTS: "false"
+      PYTHONUNBUFFERED: "1"
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+
+      - name: Install pinned dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements.lock
+
+      - name: Django system checks
+        run: python manage.py check
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Test suite
+        if: matrix.python-version == '3.14' || github.event_name != 'pull_request'
+        run: python manage.py test --noinput --parallel auto
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Production build
+        env:
+          # Inlined at build time; a placeholder, CI never calls the API.
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: npm run build
